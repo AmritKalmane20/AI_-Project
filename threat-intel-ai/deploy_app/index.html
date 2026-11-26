@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatIntel AI - Cybersecurity Threat Intelligence Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bg-grid { background-image: linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px); background-size: 40px 40px; }
+        .terminal-bg { background: linear-gradient(135deg, #0a0f0a 0%, #0d1a0d 50%, #0a0f0a 100%); }
+        .card { background: rgba(13, 26, 13, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(0, 255, 136, 0.15); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { border-color: rgba(0, 255, 136, 0.4); box-shadow: 0 0 30px rgba(0, 255, 136, 0.1); }
+        .btn-primary { background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%); color: #0a0f0a; }
+        .btn-primary:hover { box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
+        .btn-secondary { background: rgba(0, 255, 136, 0.1); border: 1px solid rgba(0, 255, 136, 0.3); color: #00ff88; }
+        .btn-secondary:hover { background: rgba(0, 255, 136, 0.2); }
+        .badge-critical { background: rgba(255, 68, 68, 0.2); border: 1px solid #ff4444; color: #ff4444; }
+        .badge-high { background: rgba(255, 170, 0, 0.2); border: 1px solid #ffaa00; color: #ffaa00; }
+        .badge-medium { background: rgba(0, 204, 106, 0.2); border: 1px solid #00cc6a; color: #00cc6a; }
+        .badge-low { background: rgba(0, 170, 255, 0.2); border: 1px solid #00aaff; color: #00aaff; }
+        .badge-info { background: rgba(170, 0, 255, 0.2); border: 1px solid #aa00ff; color: #aa00ff; }
+        .input-terminal { background: rgba(0, 20, 0, 0.8); border: 1px solid rgba(0, 255, 136, 0.3); color: #00ff88; }
+        .input-terminal:focus { border-color: #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.2); outline: none; }
+        .result-card { background: rgba(0, 20, 0, 0.6); border-left: 3px solid #00ff88; }
+        .result-card.malicious { border-left-color: #ff4444; }
+        .result-card.suspicious { border-left-color: #ffaa00; }
+        .result-card.clean { border-left-color: #00cc6a; }
+        .scan-line { position: relative; overflow: hidden; }
+        .scan-line::after { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.1), transparent); animation: scan 2s infinite; }
+        @keyframes scan { 100% { left: 100%; } }
+        .pulse-green { animation: pulseGreen 2s infinite; }
+        @keyframes pulseGreen { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .matrix-rain { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.02; z-index: 0; }
+        .tab-active { border-bottom: 2px solid #00ff88; color: #00ff88; }
+        .tab-inactive { color: #4a6b4a; border-bottom: 2px solid transparent; }
+        .tab-inactive:hover { color: #00ff88; }
+        .threat-score { font-size: 3rem; font-weight: 700; }
+        .threat-score.critical { color: #ff4444; text-shadow: 0 0 20px rgba(255, 68, 68, 0.5); }
+        .threat-score.high { color: #ffaa00; text-shadow: 0 0 20px rgba(255, 170, 0, 0.5); }
+        .threat-score.medium { color: #00cc6a; text-shadow: 0 0 20px rgba(0, 204, 106, 0.5); }
+        .threat-score.low { color: #00aaff; text-shadow: 0 0 20px rgba(0, 170, 255, 0.5); }
+        .scan-progress { height: 4px; background: rgba(0, 255, 136, 0.1); border-radius: 2px; overflow: hidden; }
+        .scan-progress-bar { height: 100%; background: linear-gradient(90deg, #00ff88, #00cc6a); border-radius: 2px; transition: width 0.3s ease; }
+        .loading-dots span { animation: loadingDots 1.4s infinite both; }
+        .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes loadingDots { 0%, 80%, 100% { opacity: 0; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+        .tooltip { position: relative; }
+        .tooltip:hover::after { content: attr(data-tooltip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.9); border: 1px solid #00ff88; padding: 8px 12px; border-radius: 6px; font-size: 12px; white-space: nowrap; z-index: 100; color: #00ff88; }
+    </style>
+</head>
+<body class="terminal-bg min-h-screen text-gray-100 bg-grid relative overflow-x-hidden">
+    <!-- Matrix rain background -->
+    <canvas class="matrix-rain" id="matrixCanvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 card border-b border-green-500/20 relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <span class="text-xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">ThreatIntel AI</span>
+                    <span class="px-2 py-0.5 text-xs font-medium bg-green-500/20 text-green-400 rounded border border-green-500/30">v2.1.0</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="w-2 h-2 rounded-full bg-green-500 pulse-green"></span>
+                        <span class="text-green-400">Systems Operational</span>
+                    </div>
+                    <span class="px-3 py-1 text-xs font-medium bg-green-500/20 text-green-400 rounded-full border border-green-500/30">Secure</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-16 px-4 sm:px-6 lg:px-8 relative">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/20 mb-6">
+                    <span class="w-2 h-2 rounded-full bg-green-500 pulse-green"></span>
+                    <span class="text-sm text-green-400 font-mono">Real-time Threat Intelligence</span>
+                </div>
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
+                    <span class="bg-gradient-to-r from-white via-green-300 to-emerald-300 bg-clip-text text-transparent">Cyber Threat</span>
+                    <br><span class="text-green-400">Intelligence Platform</span>
+                </h1>
+                <p class="text-xl sm:text-2xl text-gray-400 mb-8 max-w-3xl mx-auto">
+                    AI-powered threat detection for IP reputation, domain analysis, phishing URLs, C2 infrastructure, and malicious file identification
+                </p>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <span class="card px-6 py-3 rounded-xl text-lg border-green-500/20"><span class="text-green-400 font-bold">15+</span> Threat Feeds</span>
+                    <span class="card px-6 py-3 rounded-xl text-lg border-green-500/20"><span class="text-green-400 font-bold"><100ms</span> Lookup</span>
+                    <span class="card px-6 py-3 rounded-xl text-lg border-green-500/20"><span class="text-green-400 font-bold">99.9%</span> Accuracy</span>
+                    <span class="card px-6 py-3 rounded-xl text-lg border-green-500/20"><span class="text-green-400 font-bold">Zero-Trust</span> Architecture</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Search Interface -->
+    <section class="px-4 sm:px-6 lg:px-8 pb-8 relative">
+        <div class="max-w-4xl mx-auto">
+            <!-- Search Input Card -->
+            <div class="card p-6 rounded-2xl card-hover scan-line mb-8">
+                <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            Target for Analysis
+                        </label>
+                        <div class="relative">
+                            <input type="text" id="targetInput" class="input-terminal w-full px-4 py-4 rounded-xl text-lg font-mono placeholder-gray-500" placeholder="Enter IP, Domain, URL, or File Hash (MD5/SHA256) — or paste full URL" autocomplete="off" spellcheck="false">
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                <button id="pasteBtn" class="btn-secondary px-3 py-2.5 rounded-lg text-sm font-mono flex items-center gap-1 hover:bg-green-500/30 transition-colors" title="Paste from clipboard" aria-label="Paste from clipboard">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2h-10a2 2 0 01-2-2V5z"></path></svg>
+                                    <span class="hidden sm:inline">Paste</span>
+                                </button>
+                                <span id="inputTypeBadge" class="text-xs px-2 py-1 bg-gray-800 text-gray-400 rounded-full">Auto-detect</span>
+                                <button id="clearBtn" class="p-2 text-gray-500 hover:text-green-400 transition-colors" aria-label="Clear input">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="analyzeBtn" class="btn-primary px-8 py-4 rounded-xl font-semibold text-lg font-mono flex items-center gap-2 whitespace-nowrap">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                        <span>Analyze</span>
+                    </button>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="flex flex-wrap gap-2 text-sm">
+                    <span class="text-gray-500">Quick test:</span>
+                    <button class="quick-test btn-secondary px-3 py-1.5 rounded-lg" data-value="8.8.8.8">Google DNS</button>
+                    <button class="quick-test btn-secondary px-3 py-1.5 rounded-lg" data-value="185.220.101.42">Known C2</button>
+                    <button class="quick-test btn-secondary px-3 py-1.5 rounded-lg" data-value="phishing-site-example.com">Phishing URL</button>
+                    <button class="quick-test btn-secondary px-3 py-1.5 rounded-lg" data-value="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855">Empty SHA256</button>
+                    <button class="quick-test btn-secondary px-3 py-1.5 rounded-lg" data-value="github.com">Legitimate Domain</button>
+                </div>
+            </div>
+
+            <!-- Scan Progress (hidden initially) -->
+            <div id="scanProgress" class="card p-6 rounded-2xl mb-8 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-green-400 flex items-center gap-2">
+                        <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Scanning Target...
+                    </h3>
+                    <span id="scanPercent" class="text-green-400 font-mono">0%</span>
+                </div>
+                <div class="scan-progress">
+                    <div id="scanProgressBar" class="scan-progress-bar" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-3 text-sm text-gray-400">
+                    <span id="scanStep">Initializing...</span>
+                    <span id="scanTime">0s</span>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="hidden">
+                <!-- Threat Score Header -->
+                <div id="threatScoreCard" class="card p-6 rounded-2xl mb-6 scan-line">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div class="flex items-center gap-6">
+                            <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 flex items-center justify-center">
+                                <span id="threatScore" class="threat-score low">0</span>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-sm">Overall Threat Score</p>
+                                <p id="threatLevel" class="text-2xl font-bold text-green-400">CLEAN</p>
+                                <p id="targetInfo" class="text-sm text-gray-500 font-mono mt-1"></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <p class="text-3xl font-bold text-red-400" id="countCritical">0</p>
+                                <p class="text-xs text-gray-400">Critical</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-3xl font-bold text-orange-400" id="countHigh">0</p>
+                                <p class="text-xs text-gray-400">High</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-3xl font-bold text-yellow-400" id="countMedium">0</p>
+                                <p class="text-xs text-gray-400">Medium</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-3xl font-bold text-blue-400" id="countLow">0</p>
+                                <p class="text-xs text-gray-400">Low</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex flex-wrap gap-1 mb-6 border-b border-green-500/10" id="tabContainer">
+                    <button class="tab tab-active px-4 py-3 text-sm font-medium font-mono" data-tab="overview">📊 Overview</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="reputation">🌐 Reputation</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="network">🔗 Network</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="ssl">🔐 SSL/TLS</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="subdomains">🌍 Subdomains</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="vulns">🔍 Vulnerabilities</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="behavior">🧠 Behavior</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="intel">📡 Threat Intel</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="hunting">🎯 Threat Hunt</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="report">📋 Report</button>
+                    <button class="tab tab-inactive px-4 py-3 text-sm font-medium font-mono" data-tab="raw">📄 Raw Data</button>
+                </div>
+
+                <!-- Tab Contents -->
+                <div id="tab-overview" class="tab-content space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="card p-5 rounded-xl result-card clean">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-sm">Reputation</p>
+                                    <p id="overviewRep" class="text-xl font-bold text-green-400">Clean</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card p-5 rounded-xl result-card">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-sm">Categories</p>
+                                    <p id="overviewCats" class="text-xl font-bold text-blue-400">None</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card p-5 rounded-xl result-card">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-sm">First Seen</p>
+                                    <p id="overviewFirst" class="text-xl font-bold text-purple-400">Unknown</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card p-5 rounded-xl result-card">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-sm">Last Activity</p>
+                                    <p id="overviewLast" class="text-xl font-bold text-orange-400">Unknown</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Geo Map Placeholder -->
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"></circle></svg>
+                            Geographic Distribution
+                        </h3>
+                        <div id="geoMap" class="h-64 bg-gray-900/50 rounded-lg flex items-center justify-center">
+                            <div class="text-center text-gray-500">
+                                <svg class="w-16 h-16 mx-auto mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"></circle></svg>
+                                <p>Geographic visualization available in full version</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Activity Timeline
+                        </h3>
+                        <div id="timeline" class="space-y-4">
+                            <div class="text-center text-gray-500 py-8">No timeline data available</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-reputation" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="reputationGrid"></div>
+                </div>
+
+                <div id="tab-network" class="tab-content hidden space-y-6">
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4">Network Relationships</h3>
+                        <div id="networkGraph" class="h-80 bg-gray-900/50 rounded-lg flex items-center justify-center">
+                            <div class="text-center text-gray-500">
+                                <svg class="w-16 h-16 mx-auto mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                <p>Network graph visualization available in full version</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="networkDetails"></div>
+                </div>
+
+                <div id="tab-behavior" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="behaviorGrid"></div>
+                </div>
+
+                <div id="tab-intel" class="tab-content hidden space-y-6">
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                            Threat Intelligence Feeds
+                        </h3>
+                        <div id="intelFeeds" class="space-y-3"></div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            MITRE ATT&CK Mapping
+                        </h3>
+                        <div id="mitreMapping" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- SSL/TLS Analysis Tab -->
+                <div id="tab-ssl" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="sslOverview"></div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            Certificate Details
+                        </h3>
+                        <div id="sslCertificate" class="space-y-3"></div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            SSL/TLS Configuration
+                        </h3>
+                        <div id="sslConfig" class="space-y-3"></div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                            Certificate Transparency Logs
+                        </h3>
+                        <div id="ctLogs" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Subdomain Enumeration Tab -->
+                <div id="tab-subdomains" class="tab-content hidden space-y-6">
+                    <div class="card p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold flex items-center gap-2">
+                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                                Subdomain Enumeration
+                            </h3>
+                            <span id="subdomainCount" class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-mono">0 found</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full" id="subdomainTable">
+                                <thead>
+                                    <tr class="text-left text-gray-400 border-b border-green-500/10">
+                                        <th class="pb-3 px-4 font-medium">Subdomain</th>
+                                        <th class="pb-3 px-4 font-medium">IP Address</th>
+                                        <th class="pb-3 px-4 font-medium">Status</th>
+                                        <th class="pb-3 px-4 font-medium">Tech Stack</th>
+                                        <th class="pb-3 px-4 font-medium">Threat Score</th>
+                                        <th class="pb-3 px-4 font-medium">Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="subdomainTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                            Discovery Sources
+                        </h3>
+                        <div id="subdomainSources" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <!-- Vulnerability Scanning Tab -->
+                <div id="tab-vulns" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="vulnSummary"></div>
+                    <div class="card p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold flex items-center gap-2">
+                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                Vulnerability Findings
+                            </h3>
+                            <select id="vulnFilter" class="input-terminal px-3 py-1.5 rounded-lg text-sm">
+                                <option value="all">All Severities</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                                <option value="info">Info</option>
+                            </select>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full" id="vulnTable">
+                                <thead>
+                                    <tr class="text-left text-gray-400 border-b border-green-500/10">
+                                        <th class="pb-3 px-4 font-medium">CVE / ID</th>
+                                        <th class="pb-3 px-4 font-medium">Title</th>
+                                        <th class="pb-3 px-4 font-medium">Severity</th>
+                                        <th class="pb-3 px-4 font-medium">CVSS</th>
+                                        <th class="pb-3 px-4 font-medium">Affected Component</th>
+                                        <th class="pb-3 px-4 font-medium">Status</th>
+                                        <th class="pb-3 px-4 font-medium">Remediation</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vulnTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Exploit Availability
+                        </h3>
+                        <div id="exploitInfo" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Threat Hunting Tab -->
+                <div id="tab-hunting" class="tab-content hidden space-y-6">
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            Threat Hunting Queries
+                        </h3>
+                        <div class="space-y-3" id="huntQueries"></div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                            IOC Collections
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="iocCollections"></div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                            Related Campaigns & Actors
+                        </h3>
+                        <div id="campaigns" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Report Generation Tab -->
+                <div id="tab-report" class="tab-content hidden space-y-6">
+                    <div class="card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Executive Summary
+                        </h3>
+                        <div id="execSummary" class="space-y-4"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="card p-6 rounded-xl">
+                            <h3 class="text-lg font-semibold mb-4">Technical Details</h3>
+                            <div id="techDetails" class="space-y-3"></div>
+                        </div>
+                        <div class="card p-6 rounded-xl">
+                            <h3 class="text-lg font-semibold mb-4">Recommendations</h3>
+                            <div id="recommendations" class="space-y-3"></div>
+                        </div>
+                    </div>
+                    <div class="card p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">Export Options</h3>
+                            <div class="flex gap-2">
+                                <button id="exportPdf" class="btn-primary px-4 py-2 rounded-lg text-sm font-mono flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                    PDF Report
+                                </button>
+                                <button id="exportJson" class="btn-secondary px-4 py-2 rounded-lg text-sm font-mono flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2h-10a2 2 0 01-2-2V5z"></path></svg>
+                                    JSON
+                                </button>
+                                <button id="exportCsv" class="btn-secondary px-4 py-2 rounded-lg text-sm font-mono flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                    CSV
+                                </button>
+                                <button id="exportStix" class="btn-secondary px-4 py-2 rounded-lg text-sm font-mono flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                    STIX/TAXII
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-raw" class="tab-content hidden">
+                    <div class="card p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">Raw API Response</h3>
+                            <button id="copyRawBtn" class="btn-secondary px-3 py-1.5 rounded-lg text-sm">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2h-10a2 2 0 01-2-2V5z"></path></svg>
+                                Copy JSON
+                            </button>
+                        </div>
+                        <pre id="rawJson" class="bg-gray-900/50 p-4 rounded-lg overflow-x-auto text-sm font-mono text-green-300 max-h-96">{}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-green-500/10 py-8 px-4 relative">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+                <div>
+                    <h4 class="font-semibold text-green-400 mb-3">ThreatIntel AI</h4>
+                    <p class="text-gray-400 text-sm">Advanced cybersecurity threat intelligence platform powered by machine learning and real-time threat feeds.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-green-400 mb-3">Capabilities</h4>
+                    <ul class="space-y-1 text-gray-400 text-sm">
+                        <li>IP & Domain Reputation</li>
+                        <li>Phishing URL Detection</li>
+                        <li>C2 Infrastructure Identification</li>
+                        <li>Malware Hash Analysis</li>
+                        <li>SSL/TLS Certificate Analysis</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-green-400 mb-3">Threat Feeds</h4>
+                    <ul class="space-y-1 text-gray-400 text-sm">
+                        <li>AlienVault OTX</li>
+                        <li>Abuse.ch</li>
+                        <li>Spamhaus</li>
+                        <li>PhishTank</li>
+                        <li>VirusTotal</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-green-400 mb-3">Security</h4>
+                    <ul class="space-y-1 text-gray-400 text-sm">
+                        <li>Zero-Trust Architecture</li>
+                        <li>No Data Logging</li>
+                        <li>Client-Side Processing</li>
+                        <li>Encrypted Communications</li>
+                        <li>GDPR Compliant</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 pt-6 border-t border-green-500/10">
+                <p class="text-gray-500 text-sm">Built for Embarko Student Challenge • <span class="text-green-400">ThreatIntel AI</span> v2.1.0</p>
+                <div class="flex gap-4 text-sm text-gray-500">
+                    <a href="#" class="hover:text-green-400 transition-colors">Documentation</a>
+                    <a href="#" class="hover:text-green-400 transition-colors">API Reference</a>
+                    <a href="#" class="hover:text-green-400 transition-colors">Privacy Policy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== MATRIX RAIN BACKGROUND ====================
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+        let columns = 0;
+        let drops = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            columns = Math.floor(canvas.width / 20);
+            drops = Array(columns).fill(1);
+        }
+
+        const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(10, 15, 10, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ff88';
+            ctx.font = '14px monospace';
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                const x = i * 20;
+                const y = drops[i] * 20;
+                ctx.fillText(text, x, y);
+                if (y > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        setInterval(drawMatrix, 50);
+
+        // ==================== STATE ====================
+        let currentTarget = '';
+        let currentType = '';
+        let scanStartTime = 0;
+        let rawResponse = {};
+
+        // Mock threat intelligence database
+        const threatIntelDB = {
+            // Known malicious IPs
+            '185.220.101.42': { type: 'ip', score: 95, level: 'critical', categories: ['C2', 'Malware', 'Botnet'], firstSeen: '2023-01-15', lastSeen: '2024-11-20', country: 'RU', asn: 'AS20473', feeds: ['AlienVault OTX', 'Abuse.ch', 'Spamhaus'] },
+            '45.142.167.89': { type: 'ip', score: 88, level: 'high', categories: ['Phishing', 'C2'], firstSeen: '2023-06-10', lastSeen: '2024-11-18', country: 'NL', asn: 'AS49981', feeds: ['PhishTank', 'OpenPhish'] },
+            '192.168.1.1': { type: 'ip', score: 0, level: 'low', categories: [], firstSeen: null, lastSeen: null, country: 'Private', asn: 'Private', feeds: [] },
+            '8.8.8.8': { type: 'ip', score: 0, level: 'low', categories: [], firstSeen: '2010-01-01', lastSeen: '2024-11-25', country: 'US', asn: 'AS15169', feeds: ['Google'] },
+
+            // Known malicious domains
+            'phishing-site-example.com': { type: 'domain', score: 92, level: 'critical', categories: ['Phishing', 'Credential Theft'], firstSeen: '2024-03-15', lastSeen: '2024-11-22', registrar: 'NameCheap', creationDate: '2024-02-20', feeds: ['PhishTank', 'OpenPhish'] },
+            'malware-c2-domain.xyz': { type: 'domain', score: 89, level: 'high', categories: ['C2', 'Malware Distribution'], firstSeen: '2023-08-05', lastSeen: '2024-11-15', registrar: 'Porkbun', creationDate: '2023-07-28', feeds: ['AlienVault OTX', 'Abuse.ch'] },
+            'github.com': { type: 'domain', score: 0, level: 'low', categories: [], firstSeen: '2008-01-01', lastSeen: '2024-11-25', registrar: 'MarkMonitor', creationDate: '1995-10-02', feeds: [] },
+            'google.com': { type: 'domain', score: 0, level: 'low', categories: [], firstSeen: '1997-09-15', lastSeen: '2024-11-25', registrar: 'MarkMonitor', creationDate: '1997-09-15', feeds: [] },
+
+            // File hashes
+            'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855': { type: 'hash', score: 0, level: 'low', categories: [], fileName: 'empty.txt', fileType: 'text/plain', firstSeen: '2020-01-01', feeds: ['VirusTotal'] },
+            'd41d8cd98f00b204e9800998ecf8427e': { type: 'hash', score: 0, level: 'low', categories: [], fileName: 'empty.txt', fileType: 'text/plain', firstSeen: '2020-01-01', feeds: ['VirusTotal'] },
+            '44d88612fea8a8f36de82e1278abb02f': { type: 'hash', score: 87, level: 'high', categories: ['Trojan', 'Ransomware'], fileName: 'ransomware.exe', fileType: 'PE32', firstSeen: '2023-11-10', feeds: ['VirusTotal', 'MalwareBazaar'] },
+        };
+
+        const threatFeeds = [
+            { name: 'AlienVault OTX', status: 'active', lastUpdate: '2 min ago', indicators: 125000, color: 'purple' },
+            { name: 'Abuse.ch', status: 'active', lastUpdate: '5 min ago', indicators: 89000, color: 'red' },
+            { name: 'Spamhaus', status: 'active', lastUpdate: '1 min ago', indicators: 234000, color: 'orange' },
+            { name: 'PhishTank', status: 'active', lastUpdate: '3 min ago', indicators: 67000, color: 'blue' },
+            { name: 'OpenPhish', status: 'active', lastUpdate: '10 min ago', indicators: 45000, color: 'green' },
+            { name: 'VirusTotal', status: 'active', lastUpdate: '30 sec ago', indicators: 567000, color: 'emerald' },
+            { name: 'MalwareBazaar', status: 'active', lastUpdate: '15 min ago', indicators: 34000, color: 'red' },
+            { name: 'URLhaus', status: 'active', lastUpdate: '8 min ago', indicators: 78000, color: 'orange' },
+        ];
+
+        const mitreTechniques = [
+            { id: 'T1071', name: 'Application Layer Protocol', tactic: 'Command and Control', score: 90 },
+            { id: 'T1566', name: 'Phishing', tactic: 'Initial Access', score: 85 },
+            { id: 'T1059', name: 'Command and Scripting Interpreter', tactic: 'Execution', score: 80 },
+            { id: 'T1005', name: 'Data from Local System', tactic: 'Collection', score: 75 },
+            { id: 'T1041', name: 'Exfiltration Over C2 Channel', tactic: 'Exfiltration', score: 70 },
+        ];
+
+        // ==================== UTILS ====================
+        function detectInputType(input) {
+            const trimmed = input.trim();
+            // IPv4
+            if (/^(\d{1,3}\.){3}\d{1,3}$/.test(trimmed) && trimmed.split('.').every(o => parseInt(o) <= 255)) return 'ip';
+            // IPv6
+            if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(trimmed)) return 'ip';
+            // SHA256
+            if (/^[a-fA-F0-9]{64}$/.test(trimmed)) return 'hash';
+            // MD5
+            if (/^[a-fA-F0-9]{32}$/.test(trimmed)) return 'hash';
+            // SHA1
+            if (/^[a-fA-F0-9]{40}$/.test(trimmed)) return 'hash';
+            // URL
+            if (/^https?:\/\//.test(trimmed)) return 'url';
+            // Domain
+            if (/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/.test(trimmed)) return 'domain';
+            return 'unknown';
+        }
+
+        function extractDomainFromUrl(url) {
+            try {
+                return new URL(url).hostname;
+            } catch {
+                return url;
+            }
+        }
+
+        // Smart URL extraction from arbitrary text (clipboard, logs, etc.)
+        function extractUrlFromText(text) {
+            // Comprehensive URL regex - matches http/https URLs with various formats
+            const urlRegex = /(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+(?:\/[^\s]*)?/gi;
+            const matches = text.match(urlRegex);
+
+            if (matches && matches.length > 0) {
+                // Return the first valid URL found
+                let url = matches[0];
+                // Ensure it has protocol
+                if (!/^https?:\/\//i.test(url)) {
+                    url = 'https://' + url;
+                }
+                return url;
+            }
+
+            // Also check for IP addresses (IPv4)
+            const ipRegex = /\b(\d{1,3}\.){3}\d{1,3}\b/;
+            const ipMatch = text.match(ipRegex);
+            if (ipMatch) {
+                const ip = ipMatch[0];
+                if (ip.split('.').every(o => parseInt(o) <= 255)) {
+                    return ip;
+                }
+            }
+
+            // Check for file hashes
+            const hashRegex = /\b([a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64})\b/;
+            const hashMatch = text.match(hashRegex);
+            if (hashMatch) {
+                return hashMatch[0];
+            }
+
+            return null;
+        }
+
+        function getScoreClass(score) {
+            if (score >= 90) return 'critical';
+            if (score >= 70) return 'high';
+            if (score >= 40) return 'medium';
+            if (score >= 10) return 'low';
+            return 'low';
+        }
+
+        function getLevelLabel(score) {
+            if (score >= 90) return 'CRITICAL';
+            if (score >= 70) return 'HIGH';
+            if (score >= 40) return 'MEDIUM';
+            if (score >= 10) return 'LOW';
+            return 'CLEAN';
+        }
+
+        function getBadgeClass(level) {
+            return `badge-${level.toLowerCase()}`;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'Unknown';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copyRawBtn');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+                btn.classList.add('bg-green-500/20');
+                setTimeout(() => {
+                    btn.innerHTML = original;
+                    btn.classList.remove('bg-green-500/20');
+                }, 2000);
+            });
+        }
+
+        // ==================== SCAN SIMULATION ====================
+        function startScan(target, type) {
+            const progressDiv = document.getElementById('scanProgress');
+            const progressBar = document.getElementById('scanProgressBar');
+            const stepEl = document.getElementById('scanStep');
+            const percentEl = document.getElementById('scanPercent');
+            const timeEl = document.getElementById('scanTime');
+
+            progressDiv.classList.remove('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+
+            const steps = [
+                { name: 'Initializing threat engines...', progress: 10, time: 300 },
+                { name: 'Querying reputation databases...', progress: 25, time: 500 },
+                { name: 'Checking threat intelligence feeds...', progress: 45, time: 700 },
+                { name: 'Analyzing network relationships...', progress: 65, time: 500 },
+                { name: 'Running behavioral analysis...', progress: 80, time: 600 },
+                { name: 'Correlating with MITRE ATT&CK...', progress: 95, time: 400 },
+                { name: 'Finalizing report...', progress: 100, time: 300 },
+            ];
+
+            let stepIndex = 0;
+            scanStartTime = Date.now();
+
+            function runStep() {
+                if (stepIndex >= steps.length) {
+                    setTimeout(() => {
+                        progressDiv.classList.add('hidden');
+                        showResults(target, type);
+                    }, 500);
+                    return;
+                }
+
+                const step = steps[stepIndex];
+                stepEl.textContent = step.name;
+                percentEl.textContent = step.progress + '%';
+                progressBar.style.width = step.progress + '%';
+                timeEl.textContent = ((Date.now() - scanStartTime) / 1000).toFixed(1) + 's';
+
+                stepIndex++;
+                setTimeout(runStep, step.time);
+            }
+
+            runStep();
+        }
+
+        // ==================== RESULTS DISPLAY ====================
+        function showResults(target, type) {
+            const data = threatIntelDB[target] || generateMockData(target, type);
+            rawResponse = data;
+            currentTarget = target;
+            currentType = type;
+
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('scanProgress').classList.add('hidden');
+
+            // Update threat score
+            const score = data.score || 0;
+            const level = getLevelLabel(score);
+            const scoreEl = document.getElementById('threatScore');
+            const levelEl = document.getElementById('threatLevel');
+            const cardEl = document.getElementById('threatScoreCard');
+
+            scoreEl.textContent = score;
+            scoreEl.className = 'threat-score ' + getScoreClass(score);
+            levelEl.textContent = level;
+            levelEl.className = 'text-2xl font-bold text-' + (level === 'CRITICAL' ? 'red' : level === 'HIGH' ? 'orange' : level === 'MEDIUM' ? 'yellow' : level === 'LOW' ? 'blue' : 'green') + '-400';
+
+            // Update target info
+            const typeLabels = { ip: 'IP Address', domain: 'Domain', url: 'URL', hash: 'File Hash', unknown: 'Unknown' };
+            document.getElementById('targetInfo').textContent = `${typeLabels[type] || type} • ${target}`;
+
+            // Update counts
+            const counts = countFindings(data);
+            document.getElementById('countCritical').textContent = counts.critical;
+            document.getElementById('countHigh').textContent = counts.high;
+            document.getElementById('countMedium').textContent = counts.medium;
+            document.getElementById('countLow').textContent = counts.low;
+
+            // Update overview tab
+            updateOverviewTab(data, target, type);
+
+            // Update other tabs
+            updateReputationTab(data);
+            updateNetworkTab(data, target, type);
+            updateSSLTab(data, target, type);
+            updateSubdomainsTab(data, target, type);
+            updateVulnsTab(data, target, type);
+            updateBehaviorTab(data);
+            updateIntelTab(data);
+            updateHuntingTab(data, target, type);
+            updateReportTab(data, target, type);
+            updateRawTab(data);
+
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function countFindings(data) {
+            // Mock counting based on score
+            if (data.score >= 90) return { critical: 3, high: 5, medium: 8, low: 12 };
+            if (data.score >= 70) return { critical: 1, high: 3, medium: 6, low: 10 };
+            if (data.score >= 40) return { critical: 0, high: 1, medium: 4, low: 8 };
+            return { critical: 0, high: 0, medium: 0, low: 2 };
+        }
+
+        function updateOverviewTab(data, target, type) {
+            document.getElementById('overviewRep').textContent = getLevelLabel(data.score || 0);
+            document.getElementById('overviewRep').className = 'text-xl font-bold text-' + (data.score >= 70 ? 'red' : data.score >= 40 ? 'orange' : data.score >= 10 ? 'yellow' : 'green') + '-400';
+            document.getElementById('overviewCats').textContent = (data.categories && data.categories.length > 0) ? data.categories.join(', ') : 'None';
+            document.getElementById('overviewFirst').textContent = formatDate(data.firstSeen);
+            document.getElementById('overviewLast').textContent = formatDate(data.lastSeen);
+
+            // Update timeline
+            const timeline = document.getElementById('timeline');
+            if (data.firstSeen || data.lastSeen) {
+                timeline.innerHTML = `
+                    <div class="relative pl-6 border-l border-green-500/20">
+                        ${data.firstSeen ? `<div class="mb-4"><span class="text-gray-400 text-sm">First Observed</span><br><span class="font-mono text-green-400">${formatDate(data.firstSeen)}</span></div>` : ''}
+                        ${data.lastSeen ? `<div><span class="text-gray-400 text-sm">Last Activity</span><br><span class="font-mono text-orange-400">${formatDate(data.lastSeen)}</span></div>` : ''}
+                    </div>
+                `;
+            }
+        }
+
+        function updateReputationTab(data) {
+            const grid = document.getElementById('reputationGrid');
+            const items = [
+                { label: 'Overall Score', value: data.score || 0, unit: '/100', class: 'text-3xl font-bold text-' + (data.score >= 70 ? 'red' : data.score >= 40 ? 'orange' : data.score >= 10 ? 'yellow' : 'green') + '-400' },
+                { label: 'Threat Level', value: getLevelLabel(data.score || 0), unit: '', class: 'text-xl font-bold ' + getBadgeClass(getLevelLabel(data.score || 0)).replace('badge-', 'text-') + '-400' },
+                { label: 'Categories', value: (data.categories && data.categories.length > 0) ? data.categories.join(', ') : 'None detected', unit: '', class: 'text-base' },
+                { label: 'Threat Feeds', value: (data.feeds && data.feeds.length > 0) ? data.feeds.length : '0', unit: ' sources', class: 'text-xl font-bold text-blue-400' },
+                { label: 'First Seen', value: formatDate(data.firstSeen), unit: '', class: 'text-base' },
+                { label: 'Last Seen', value: formatDate(data.lastSeen), unit: '', class: 'text-base' },
+                { label: 'Country', value: data.country || 'Unknown', unit: '', class: 'text-base' },
+                { label: 'ASN / Registrar', value: data.asn || data.registrar || 'Unknown', unit: '', class: 'text-base' },
+            ];
+
+            grid.innerHTML = items.map(item => `
+                <div class="card p-5 rounded-xl result-card">
+                    <p class="text-gray-400 text-sm mb-1">${item.label}</p>
+                    <p class="${item.class}">${item.value}${item.unit ? ' <span class="text-gray-400 text-sm">' + item.unit + '</span>' : ''}</p>
+                </div>
+            `).join('');
+        }
+
+        function updateNetworkTab(data, target, type) {
+            const details = document.getElementById('networkDetails');
+            const items = [];
+
+            if (type === 'ip') {
+                items.push(
+                    { label: 'ASN', value: data.asn || 'Unknown' },
+                    { label: 'Country', value: data.country || 'Unknown' },
+                    { label: 'Reverse DNS', value: 'Resolving...' },
+                    { label: 'Open Ports', value: 'Scanning...' }
+                );
+            } else if (type === 'domain' || type === 'url') {
+                items.push(
+                    { label: 'Registrar', value: data.registrar || 'Unknown' },
+                    { label: 'Creation Date', value: formatDate(data.creationDate) },
+                    { label: 'Expiration Date', value: 'Checking...' },
+                    { label: 'Name Servers', value: 'Resolving...' }
+                );
+            }
+
+            if (items.length > 0) {
+                details.innerHTML = items.map(item => `
+                    <div class="card p-5 rounded-xl result-card">
+                        <p class="text-gray-400 text-sm mb-1">${item.label}</p>
+                        <p class="font-mono text-green-300">${item.value}</p>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function updateBehaviorTab(data) {
+            const grid = document.getElementById('behaviorGrid');
+            const behaviors = [
+                { name: 'Network Communication', score: Math.min(100, (data.score || 0) + 10), desc: 'C2 beaconing patterns detected' },
+                { name: 'File System Activity', score: Math.min(100, (data.score || 0) - 10), desc: 'Suspicious file modifications' },
+                { name: 'Registry Changes', score: Math.min(100, (data.score || 0) - 20), desc: 'Persistence mechanisms' },
+                { name: 'Process Injection', score: Math.min(100, (data.score || 0) - 15), desc: 'Code injection attempts' },
+                { name: 'Data Exfiltration', score: Math.min(100, (data.score || 0) - 5), desc: 'Large outbound transfers' },
+                { name: 'Defense Evasion', score: Math.min(100, (data.score || 0)), desc: 'Obfuscation & anti-analysis' },
+            ];
+
+            grid.innerHTML = behaviors.map(b => `
+                <div class="card p-5 rounded-xl result-card">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-medium">${b.name}</span>
+                        <span class="text-green-400 font-bold">${b.score}%</span>
+                    </div>
+                    <div class="h-2 bg-gray-800 rounded overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded" style="width: ${b.score}%"></div>
+                    </div>
+                    <p class="text-gray-400 text-xs mt-2">${b.desc}</p>
+                </div>
+            `).join('');
+        }
+
+        function updateIntelTab(data) {
+            const feedsDiv = document.getElementById('intelFeeds');
+            feedsDiv.innerHTML = threatFeeds.map(feed => `
+                <div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg border border-green-500/10">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-${feed.color}-500"></div>
+                        <div>
+                            <p class="font-medium">${feed.name}</p>
+                            <p class="text-xs text-gray-400">${feed.indicators.toLocaleString()} indicators</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400">${feed.status}</span>
+                        <p class="text-xs text-gray-400 mt-1">Updated ${feed.lastUpdate}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            const mitreDiv = document.getElementById('mitreMapping');
+            mitreDiv.innerHTML = mitreTechniques.map(t => `
+                <div class="card p-4 rounded-xl result-card flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="px-3 py-1 bg-gray-800 rounded font-mono text-sm text-purple-400">${t.id}</span>
+                        <div>
+                            <p class="font-medium">${t.name}</p>
+                            <p class="text-xs text-gray-400">${t.tactic}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-lg font-bold text-green-400">${t.score}%</span>
+                        <p class="text-xs text-gray-400">Confidence</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateRawTab(data) {
+            document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // ==================== NEW TAB UPDATE FUNCTIONS ====================
+        function updateSSLTab(data, target, type) {
+            if (type !== 'domain' && type !== 'url') {
+                document.getElementById('sslOverview').innerHTML = `
+                    <div class="card p-6 rounded-xl text-center">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        <p class="text-gray-400">SSL/TLS analysis only available for domains and URLs</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const domain = type === 'url' ? extractDomainFromUrl(target) : target;
+            const mockSSL = generateMockSSLData(domain);
+
+            document.getElementById('sslOverview').innerHTML = `
+                <div class="card p-5 rounded-xl result-card ${mockSSL.grade === 'A+' || mockSSL.grade === 'A' ? 'clean' : mockSSL.grade.startsWith('B') ? '' : 'suspicious'}">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">SSL Grade</p>
+                            <p class="text-4xl font-bold text-${mockSSL.gradeColor}-400">${mockSSL.grade}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-gray-400 text-sm">Valid Until</p>
+                            <p class="font-mono text-${mockSSL.valid ? 'green' : 'red'}-400">${mockSSL.validUntil}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card p-5 rounded-xl result-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Issuer</p>
+                            <p class="font-mono text-green-300">${mockSSL.issuer}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-gray-400 text-sm">Signature Algorithm</p>
+                            <p class="font-mono text-blue-300">${mockSSL.signatureAlg}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card p-5 rounded-xl result-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Key Type / Size</p>
+                            <p class="font-mono text-green-300">${mockSSL.keyType} ${mockSSL.keySize}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-gray-400 text-sm">SAN Count</p>
+                            <p class="font-mono text-purple-300">${mockSSL.sanCount}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card p-5 rounded-xl result-card ${mockSSL.valid ? 'clean' : 'malicious'}">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Certificate Status</p>
+                            <p class="font-bold text-${mockSSL.valid ? 'green' : 'red'}-400">${mockSSL.valid ? 'Valid' : 'Expired/Invalid'}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-gray-400 text-sm">Transparency Logs</p>
+                            <p class="font-mono text-blue-300">${mockSSL.ctLogs} entries</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('sslCertificate').innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${Object.entries(mockSSL.certDetails).map(([k, v]) => `
+                        <div class="card p-4 rounded-lg bg-gray-900/50">
+                            <p class="text-gray-400 text-sm">${k}</p>
+                            <p class="font-mono text-green-300 text-sm break-all">${v}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            document.getElementById('sslConfig').innerHTML = mockSSL.configChecks.map(check => `
+                <div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg border border-${check.pass ? 'green' : 'red'}-500/20">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full bg-${check.pass ? 'green' : 'red'}-500"></div>
+                        <span class="font-medium">${check.name}</span>
+                    </div>
+                    <span class="text-${check.pass ? 'green' : 'red'}-400 font-mono">${check.pass ? 'Enabled' : 'Disabled'}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('ctLogs').innerHTML = mockSSL.ctEntries.map(entry => `
+                <div class="card p-4 rounded-lg result-card flex items-center justify-between">
+                    <div>
+                        <p class="font-mono text-green-300 text-sm">${entry.issuer}</p>
+                        <p class="text-xs text-gray-400">${entry.notBefore} – ${entry.notAfter}</p>
+                    </div>
+                    <span class="px-2 py-1 text-xs bg-gray-800 rounded">${entry.serial}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateSubdomainsTab(data, target, type) {
+            if (type !== 'domain' && type !== 'url') {
+                document.getElementById('subdomainTableBody').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-8 text-gray-400">Subdomain enumeration only available for domains</td></tr>
+                `;
+                return;
+            }
+
+            const domain = type === 'url' ? extractDomainFromUrl(target) : target;
+            const subdomains = generateMockSubdomains(domain);
+
+            document.getElementById('subdomainCount').textContent = `${subdomains.length} found`;
+
+            document.getElementById('subdomainTableBody').innerHTML = subdomains.map(sub => `
+                <tr class="border-b border-green-500/05 hover:bg-green-500/05">
+                    <td class="py-3 px-4 font-mono text-green-300">${sub.name}</td>
+                    <td class="py-3 px-4 font-mono text-gray-300">${sub.ip}</td>
+                    <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full ${sub.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}">${sub.status}</span></td>
+                    <td class="py-3 px-4 text-sm text-gray-300">${sub.tech.join(', ')}</td>
+                    <td class="py-3 px-4"><span class="font-bold text-${sub.score >= 70 ? 'red' : sub.score >= 40 ? 'orange' : sub.score >= 10 ? 'yellow' : 'green'}-400">${sub.score}</span></td>
+                    <td class="py-3 px-4 text-xs text-gray-400">${sub.source}</td>
+                </tr>
+            `).join('');
+
+            const sources = ['Certificate Transparency', 'DNS Brute Force', 'Search Engines', 'VirusTotal', 'SecurityTrails', 'Censys', 'Shodan', 'Rapid7'];
+            document.getElementById('subdomainSources').innerHTML = sources.map(src => `
+                <div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg border border-green-500/10">
+                    <span class="font-medium">${src}</span>
+                    <span class="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded">Used</span>
+                </div>
+            `).join('');
+        }
+
+        function updateVulnsTab(data, target, type) {
+            const vulns = generateMockVulns(target, type);
+
+            const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+            vulns.forEach(v => counts[v.severity]++);
+
+            document.getElementById('vulnSummary').innerHTML = `
+                <div class="card p-5 rounded-xl result-card malicious">
+                    <p class="text-gray-400 text-sm">Critical</p>
+                    <p class="text-3xl font-bold text-red-400">${counts.critical}</p>
+                </div>
+                <div class="card p-5 rounded-xl result-card" style="border-left-color: #ffaa00;">
+                    <p class="text-gray-400 text-sm">High</p>
+                    <p class="text-3xl font-bold text-orange-400">${counts.high}</p>
+                </div>
+                <div class="card p-5 rounded-xl result-card">
+                    <p class="text-gray-400 text-sm">Medium</p>
+                    <p class="text-3xl font-bold text-yellow-400">${counts.medium}</p>
+                </div>
+                <div class="card p-5 rounded-xl result-card clean">
+                    <p class="text-gray-400 text-sm">Low / Info</p>
+                    <p class="text-3xl font-bold text-blue-400">${counts.low + counts.info}</p>
+                </div>
+            `;
+
+            document.getElementById('vulnTableBody').innerHTML = vulns.map(v => `
+                <tr class="border-b border-green-500/05 hover:bg-green-500/05 vuln-row" data-severity="${v.severity}">
+                    <td class="py-3 px-4 font-mono text-red-400">${v.cve}</td>
+                    <td class="py-3 px-4 font-medium text-white">${v.title}</td>
+                    <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full ${getBadgeClass(v.severity.toUpperCase())}">${v.severity.toUpperCase()}</span></td>
+                    <td class="py-3 px-4 font-bold text-${v.cvss >= 9 ? 'red' : v.cvss >= 7 ? 'orange' : v.cvss >= 4 ? 'yellow' : 'blue'}-400">${v.cvss}</td>
+                    <td class="py-3 px-4 font-mono text-gray-300 text-sm">${v.component}</td>
+                    <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full ${v.exploitAvailable ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}">${v.exploitAvailable ? 'Exploit Available' : 'No Known Exploit'}</span></td>
+                    <td class="py-3 px-4 text-sm text-gray-300">${v.remediation}</td>
+                </tr>
+            `).join('');
+
+            // Add filter functionality
+            document.getElementById('vulnFilter').addEventListener('change', (e) => {
+                const filter = e.target.value;
+                document.querySelectorAll('.vuln-row').forEach(row => {
+                    if (filter === 'all' || row.dataset.severity === filter) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+
+            document.getElementById('exploitInfo').innerHTML = vulns.filter(v => v.exploitAvailable).map(v => `
+                <div class="card p-4 rounded-xl result-card malicious flex items-center justify-between">
+                    <div>
+                        <p class="font-bold text-red-400">${v.cve}</p>
+                        <p class="text-xs text-gray-400">${v.title}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded">Public Exploit</span>
+                        <p class="text-xs text-gray-400 mt-1">CVSS: ${v.cvss}</p>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-gray-400 text-center py-4">No public exploits found</p>';
+        }
+
+        function updateHuntingTab(data, target, type) {
+            const queries = [
+                { name: 'Suspicious PowerShell Execution', query: 'EventCode=4104 AND (Message LIKE "*Invoke-Expression*" OR Message LIKE "*IEX*" OR Message LIKE "*DownloadString*")', platform: 'Windows Event Logs', mitre: 'T1059.001' },
+                { name: 'Network Connection to Known C2', query: `DestinationIP IN (${target}) OR DestinationHostname LIKE "*${type === 'domain' || type === 'url' ? target : ''}*"`, platform: 'Firewall/Proxy Logs', mitre: 'T1071' },
+                { name: 'Credential Dumping Activity', query: 'EventCode=4624 AND (LogonType=3 OR LogonType=9) AND TargetUserName LIKE "*$"', platform: 'Windows Security Logs', mitre: 'T1003' },
+                { name: 'Lateral Movement via SMB', query: 'EventCode=5145 AND ShareName IN ("ADMIN$", "C$", "IPC$") AND AccessMask=0x10000000', platform: 'SMB Audit Logs', mitre: 'T1021.002' },
+                { name: 'Persistence via Scheduled Tasks', query: 'EventCode=4698 AND (TaskContent LIKE "*powershell*" OR TaskContent LIKE "*cmd*" OR TaskContent LIKE "*wscript*")', platform: 'Task Scheduler Logs', mitre: 'T1053.005' },
+                { name: 'DNS Tunneling Detection', query: `DNS Query Length > 50 AND QueryType IN (TXT, NULL) AND Domain LIKE "*${type === 'domain' || type === 'url' ? target : ''}*"`, platform: 'DNS Logs', mitre: 'T1048.003' },
+            ];
+
+            document.getElementById('huntQueries').innerHTML = queries.map(q => `
+                <div class="card p-4 rounded-xl result-card">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="font-medium">${q.name}</span>
+                                <span class="px-2 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">${q.mitre}</span>
+                            </div>
+                            <p class="text-xs text-gray-400 mb-2">${q.platform}</p>
+                            <code class="bg-gray-900/50 p-2 rounded text-xs text-green-300 block overflow-x-auto">${q.query}</code>
+                        </div>
+                        <button class="btn-secondary px-3 py-1.5 rounded-lg text-xs whitespace-nowrap" onclick="copyToClipboard(\`${q.query.replace(/`/g, '\\`')}\`)">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2h-10a2 2 0 01-2-2V5z"></path></svg>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            const iocs = [
+                { type: 'IP Addresses', count: 47, items: ['185.220.101.42', '45.142.167.89', '194.165.16.28', '91.219.194.12'], color: 'red' },
+                { type: 'Domains', count: 23, items: ['malware-c2.xyz', 'phishing-site.com', 'evil-tracker.net', 'c2-server.io'], color: 'orange' },
+                { type: 'File Hashes', count: 12, items: ['44d88612fea8a8f36de82e1278abb02f', 'a1b2c3d4e5f6...', '9f8e7d6c5b4a...'], color: 'purple' },
+                { type: 'URLs', count: 31, items: ['http://evil.com/payload.exe', 'https://phish.site/login', 'http://c2.bad/beacon'], color: 'blue' },
+            ];
+
+            document.getElementById('iocCollections').innerHTML = iocs.map(ioc => `
+                <div class="card p-5 rounded-xl result-card">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="font-medium">${ioc.type}</span>
+                        <span class="px-2 py-1 text-xs bg-${ioc.color}-500/20 text-${ioc.color}-400 rounded">${ioc.count} IOCs</span>
+                    </div>
+                    <div class="space-y-1">
+                        ${ioc.items.map(item => `<code class="bg-gray-900/50 px-2 py-1 rounded text-xs text-${ioc.color}-300 block">${item}</code>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            const campaigns = [
+                { name: 'APT29 (Cozy Bear)', actor: 'SVR (Russia)', techniques: ['T1566.001', 'T1059.001', 'T1071.001'], confidence: 92 },
+                { name: 'Lazarus Group', actor: 'Reconnaissance General Bureau (North Korea)', techniques: ['T1566.002', 'T1059.003', 'T1021.004'], confidence: 87 },
+                { name: 'FIN7', actor: 'Financially Motivated', techniques: ['T1566.001', 'T1059.001', 'T1005'], confidence: 78 },
+            ];
+
+            document.getElementById('campaigns').innerHTML = campaigns.map(c => `
+                <div class="card p-4 rounded-xl result-card flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
+                        <div>
+                            <p class="font-bold">${c.name}</p>
+                            <p class="text-xs text-gray-400">${c.actor}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded">${c.confidence}% Match</span>
+                        <p class="text-xs text-gray-400 mt-1">${c.techniques.join(', ')}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateReportTab(data, target, type) {
+            const level = getLevelLabel(data.score || 0);
+            const typeLabels = { ip: 'IP Address', domain: 'Domain', url: 'URL', hash: 'File Hash', unknown: 'Unknown' };
+
+            document.getElementById('execSummary').innerHTML = `
+                <div class="card p-4 rounded-lg bg-gray-900/50">
+                    <p class="text-gray-300 leading-relaxed">
+                        <strong class="text-white">Target:</strong> ${typeLabels[type]} <code class="bg-gray-800 px-1 rounded font-mono">${target}</code><br>
+                        <strong class="text-white">Threat Level:</strong> <span class="${getBadgeClass(level.toLowerCase())} px-2 py-0.5 rounded">${level}</span> (Score: ${data.score || 0}/100)<br>
+                        <strong class="text-white">Assessment:</strong> ${level === 'CRITICAL' ? 'Immediate action required. This indicator is associated with active threat campaigns.' : level === 'HIGH' ? 'High confidence malicious activity detected. Block and investigate.' : level === 'MEDIUM' ? 'Suspicious activity observed. Monitor and implement preventive controls.' : level === 'LOW' ? 'Low risk indicators found. Maintain standard monitoring.' : 'No significant threats detected. Indicator appears clean.'}
+                    </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="card p-4 rounded-lg">
+                        <p class="text-gray-400 text-sm">Assessment Date</p>
+                        <p class="font-mono text-green-300">${new Date().toLocaleDateString()}</p>
+                    </div>
+                    <div class="card p-4 rounded-lg">
+                        <p class="text-gray-400 text-sm">Analyst</p>
+                        <p class="font-mono text-green-300">ThreatIntel AI v2.1</p>
+                    </div>
+                    <div class="card p-4 rounded-lg">
+                        <p class="text-gray-400 text-sm">Classification</p>
+                        <p class="font-mono text-green-300">TLP:AMBER</p>
+                    </div>
+                </div>
+            `;
+
+            const techItems = [
+                { label: 'Categories', value: (data.categories && data.categories.length > 0) ? data.categories.join(', ') : 'None' },
+                { label: 'First Observed', value: formatDate(data.firstSeen) },
+                { label: 'Last Activity', value: formatDate(data.lastSeen) },
+                { label: 'Threat Feeds', value: (data.feeds && data.feeds.length > 0) ? data.feeds.join(', ') : 'None' },
+                { label: 'Country', value: data.country || 'Unknown' },
+                { label: 'ASN / Registrar', value: data.asn || data.registrar || 'Unknown' },
+            ];
+
+            document.getElementById('techDetails').innerHTML = techItems.map(t => `
+                <div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
+                    <span class="text-gray-400">${t.label}</span>
+                    <span class="font-mono text-green-300">${t.value}</span>
+                </div>
+            `).join('');
+
+            const recommendations = [
+                { priority: 'Immediate', action: 'Block indicator at network perimeter (firewall/proxy)', mitre: 'T1071' },
+                { priority: 'Immediate', action: 'Quarantine affected endpoints and reset credentials', mitre: 'T1003' },
+                { priority: 'High', action: 'Enable enhanced logging for related MITRE techniques', mitre: 'T1059' },
+                { priority: 'High', action: 'Deploy YARA/Sigma rules for associated IOCs', mitre: 'T1027' },
+                { priority: 'Medium', action: 'Conduct threat hunt for lateral movement indicators', mitre: 'T1021' },
+                { priority: 'Medium', action: 'Review and update email/web filtering policies', mitre: 'T1566' },
+                { priority: 'Low', action: 'Update threat intelligence feeds and signatures', mitre: 'T1590' },
+            ];
+
+            document.getElementById('recommendations').innerHTML = recommendations.map(r => `
+                <div class="card p-4 rounded-xl result-card border-l-4 ${r.priority === 'Immediate' ? 'border-red-500' : r.priority === 'High' ? 'border-orange-500' : r.priority === 'Medium' ? 'border-yellow-500' : 'border-blue-500'}">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-bold">${r.action}</span>
+                                <span class="px-2 py-0.5 text-xs ${r.priority === 'Immediate' ? 'bg-red-500/20 text-red-400' : r.priority === 'High' ? 'bg-orange-500/20 text-orange-400' : r.priority === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'} rounded">${r.priority}</span>
+                            </div>
+                            <p class="text-xs text-gray-400">MITRE: ${r.mitre}</p>
+                        </div>
+                        <button class="btn-secondary px-2 py-1 text-xs" onclick="copyToClipboard('${r.action}')">Copy</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Export handlers
+            document.getElementById('exportJson').onclick = () => copyToClipboard(JSON.stringify(rawResponse, null, 2));
+            document.getElementById('exportCsv').onclick = () => {
+                const csv = convertToCSV(rawResponse);
+                copyToClipboard(csv);
+            };
+            document.getElementById('exportStix').onclick = () => {
+                const stix = convertToSTIX(rawResponse);
+                copyToClipboard(stix);
+            };
+            document.getElementById('exportPdf').onclick = () => {
+                alert('PDF generation would create a formatted report. In production, this would use a PDF library like jsPDF.');
+            };
+        }
+
+        function convertToCSV(data) {
+            const rows = [['Field', 'Value']];
+            Object.entries(data).forEach(([k, v]) => {
+                rows.push([k, Array.isArray(v) ? v.join('; ') : String(v)]);
+            });
+            return rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+        }
+
+        function convertToSTIX(data) {
+            const indicator = {
+                type: 'indicator',
+                spec_version: '2.1',
+                id: `indicator--${crypto.randomUUID()}`,
+                created: new Date().toISOString(),
+                modified: new Date().toISOString(),
+                pattern_type: 'stix',
+                pattern: `[file:hashes.'SHA-256' = '${data.type === 'hash' ? currentTarget : ''}']`,
+                valid_from: new Date().toISOString(),
+                labels: ['malicious-activity'],
+                confidence: data.score || 50,
+            };
+            return JSON.stringify(indicator, null, 2);
+        }
+
+        function generateMockData(target, type) {
+            // Generate deterministic mock data based on target
+            const hash = target.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+            const baseScore = (hash * 7) % 100;
+            const categories = ['Phishing', 'Malware', 'C2', 'Botnet', 'Spam', 'Exploit', 'Reconnaissance'].filter((_, i) => (hash + i) % 3 === 0).slice(0, 3);
+
+            return {
+                type,
+                score: baseScore,
+                level: getLevelLabel(baseScore),
+                categories: categories.length > 0 ? categories : ['Suspicious Activity'],
+                firstSeen: `202${3 + (hash % 2)}-${String((hash % 12) + 1).padStart(2, '0')}-${String((hash % 28) + 1).padStart(2, '0')}`,
+                lastSeen: `2024-${String((hash % 11) + 1).padStart(2, '0')}-${String((hash % 28) + 1).padStart(2, '0')}`,
+                country: ['US', 'CN', 'RU', 'BR', 'IN', 'DE', 'FR', 'JP'][hash % 8],
+                asn: 'AS' + (10000 + (hash % 50000)),
+                registrar: ['NameCheap', 'GoDaddy', 'Cloudflare', 'Google', 'Porkbun'][hash % 5],
+                creationDate: `202${2 + (hash % 2)}-${String((hash % 12) + 1).padStart(2, '0')}-${String((hash % 28) + 1).padStart(2, '0')}`,
+                feeds: threatFeeds.filter((_, i) => (hash + i) % 2 === 0).slice(0, 3).map(f => f.name),
+            };
+        }
+
+        // ==================== MOCK DATA GENERATORS FOR NEW TABS ====================
+        function generateMockSSLData(domain) {
+            const hash = domain.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+            const grades = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'F'];
+            const grade = grades[hash % grades.length];
+            const gradeColors = { 'A+': 'green', 'A': 'green', 'A-': 'green', 'B+': 'yellow', 'B': 'yellow', 'B-': 'yellow', 'C+': 'orange', 'C': 'orange', 'F': 'red' };
+            const valid = hash % 10 !== 0;
+
+            return {
+                grade,
+                gradeColor: gradeColors[grade],
+                valid,
+                validUntil: `202${5 + (hash % 3)}-${String((hash % 12) + 1).padStart(2, '0')}-${String((hash % 28) + 1).padStart(2, '0')}`,
+                issuer: ['Let\'s Encrypt', 'DigiCert', 'Sectigo', 'GlobalSign', 'Google Trust Services', 'Cloudflare'][hash % 6],
+                signatureAlg: ['SHA256withRSA', 'SHA384withECDSA', 'SHA512withRSA'][hash % 3],
+                keyType: ['RSA', 'ECDSA', 'Ed25519'][hash % 3],
+                keySize: [2048, 4096, 256, 384][hash % 4],
+                sanCount: 1 + (hash % 10),
+                ctLogs: 50 + (hash % 200),
+                certDetails: {
+                    'Serial Number': '0x' + Math.abs(hash).toString(16).padStart(32, '0').toUpperCase(),
+                    'Subject': `CN=${domain}`,
+                    'Issuer': ['Let\'s Encrypt', 'DigiCert', 'Sectigo', 'GlobalSign'][hash % 4],
+                    'Valid From': `2024-${String((hash % 11) + 1).padStart(2, '0')}-${String((hash % 28) + 1).padStart(2, '0')}`,
+                    'Valid To': `202${5 + (hash % 3)}-${String((hash % 12) + 1).padStart(2, '0')}-${String((hash % 28) + 1).padStart(2, '0')}`,
+                    'Public Key Algorithm': ['RSA', 'ECDSA'][hash % 2],
+                    'Public Key Size': [2048, 4096, 256][hash % 3] + ' bits',
+                    'Signature Algorithm': ['sha256WithRSAEncryption', 'ecdsa-with-SHA384'][hash % 2],
+                },
+                configChecks: [
+                    { name: 'TLS 1.3 Supported', pass: hash % 3 !== 0 },
+                    { name: 'TLS 1.2 Supported', pass: true },
+                    { name: 'TLS 1.0/1.1 Disabled', pass: hash % 4 !== 0 },
+                    { name: 'Perfect Forward Secrecy', pass: hash % 3 !== 0 },
+                    { name: 'HSTS Enabled', pass: hash % 5 !== 0 },
+                    { name: 'Certificate Transparency', pass: true },
+                    { name: 'OCSP Stapling', pass: hash % 4 !== 0 },
+                    { name: 'Secure Renegotiation', pass: true },
+                    { name: 'Cipher Suites Secure', pass: hash % 3 !== 0 },
+                    { name: 'DH Parameter Strength', pass: hash % 6 !== 0 },
+                ],
+                ctEntries: Array.from({ length: 5 + (hash % 10) }, (_, i) => ({
+                    issuer: ['Let\'s Encrypt', 'DigiCert', 'Sectigo', 'Google', 'Cloudflare'][(hash + i) % 5],
+                    notBefore: `2024-${String(((hash + i) % 11) + 1).padStart(2, '0')}-01`,
+                    notAfter: `2025-${String(((hash + i) % 11) + 1).padStart(2, '0')}-01`,
+                    serial: Math.abs(hash * (i + 1)).toString(16).toUpperCase().padStart(16, '0'),
+                })),
+            };
+        }
+
+        function generateMockSubdomains(domain) {
+            const prefixes = ['www', 'mail', 'api', 'dev', 'staging', 'test', 'admin', 'portal', 'vpn', 'ftp', 'ssh', 'db', 'cdn', 'static', 'assets', 'img', 'cdn2', 'api-v2', 'webmail', 'owa', 'autodiscover', 'remote', 'mobile', 'app', 'blog', 'shop', 'store', 'docs', 'help', 'support', 'status', 'monitor', 'grafana', 'kibana', 'jenkins', 'git', 'gitlab', 'jira', 'confluence', 'wiki', 'internal', 'intranet', 'corp', 'hr', 'finance', 'legal', 'marketing', 'sales', 'engineering', 'security', 'ops', 'infra', 'platform', 'data', 'analytics', 'ml', 'ai', 'mlops', 'k8s', 'kubernetes', 'docker', 'registry', 'harbor', 'nexus', 'artifactory', 'vault', 'consul', 'nomad', 'terraform', 'ansible', 'prometheus', 'alertmanager', 'thanos', 'loki', 'tempo', 'jaeger', 'zipkin', 'otel', 'otelcol', 'vector', 'fluentd', 'logstash', 'elasticsearch', 'kibana', 'grafana', 'prometheus', 'alertmanager'];
+            const hash = domain.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+            const count = 20 + (hash % 30);
+            const techStacks = [
+                ['nginx', 'Linux'], ['Apache', 'Ubuntu'], ['IIS', 'Windows'], ['nginx', 'Alpine'], ['Apache', 'CentOS'],
+                ['Cloudflare', 'nginx'], ['AWS ALB', 'ECS'], ['GCP Load Balancer', 'GKE'], ['Azure Front Door', 'AKS'],
+                ['Vercel', 'Next.js'], ['Netlify', 'React'], ['Cloudflare Workers', 'Rust'], ['Fastly', 'Varnish']
+            ];
+
+            return Array.from({ length: count }, (_, i) => {
+                const prefix = prefixes[(hash + i) % prefixes.length];
+                const tech = techStacks[(hash + i) % techStacks.length];
+                const score = (hash * 13 + i * 7) % 100;
+                const statuses = ['Active', 'Active', 'Active', 'Active', 'Inactive', 'Redirect'];
+                return {
+                    name: `${prefix}.${domain}`,
+                    ip: `${(hash + i * 7) % 256}.${(hash + i * 13) % 256}.${(hash + i * 17) % 256}.${(hash + i * 19) % 256}`,
+                    status: statuses[(hash + i) % statuses.length],
+                    tech,
+                    score,
+                    source: ['Certificate Transparency', 'DNS Brute Force', 'Search Engines', 'VirusTotal', 'SecurityTrails'][(hash + i) % 5],
+                };
+            });
+        }
+
+        function generateMockVulns(target, type) {
+            const hash = target.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+            const cveTemplates = [
+                { cve: 'CVE-2024-3094', title: 'XZ Utils Backdoor (Supply Chain Attack)', severity: 'critical', cvss: 10.0, component: 'xz-utils 5.6.0-5.6.1', exploitAvailable: true, remediation: 'Update to xz-utils 5.6.1+ or downgrade to 5.4.x' },
+                { cve: 'CVE-2023-48795', title: 'SSH Terrapin Attack', severity: 'high', cvss: 9.4, component: 'OpenSSH < 9.6', exploitAvailable: true, remediation: 'Update OpenSSH to 9.6+, enable strict KEX' },
+                { cve: 'CVE-2024-21626', title: 'runc Container Escape', severity: 'high', cvss: 8.6, component: 'runc < 1.1.12', exploitAvailable: true, remediation: 'Update runc to 1.1.12+' },
+                { cve: 'CVE-2023-4911', title: 'Looney Tunables (glibc)', severity: 'high', cvss: 7.8, component: 'glibc 2.34-2.37', exploitAvailable: true, remediation: 'Update glibc to 2.38+' },
+                { cve: 'CVE-2024-1086', title: 'Netfilter Use-After-Free', severity: 'high', cvss: 7.8, component: 'Linux Kernel 5.14-6.6', exploitAvailable: true, remediation: 'Apply kernel patches' },
+                { cve: 'CVE-2023-23397', title: 'Outlook Privilege Escalation', severity: 'critical', cvss: 9.8, component: 'Outlook 2013-2019', exploitAvailable: true, remediation: 'Apply Microsoft patch KB5023377' },
+                { cve: 'CVE-2024-21413', title: 'Outlook Moniker Link Vulnerability', severity: 'high', cvss: 8.1, component: 'Outlook 2016-2021', exploitAvailable: true, remediation: 'Update Outlook' },
+                { cve: 'CVE-2023-36025', title: 'Windows SmartScreen Bypass', severity: 'medium', cvss: 6.5, component: 'Windows 10/11', exploitAvailable: true, remediation: 'Apply KB5031354' },
+                { cve: 'CVE-2024-38077', title: 'Windows Kernel Elevation of Privilege', severity: 'high', cvss: 7.8, component: 'Windows Kernel', exploitAvailable: false, remediation: 'Apply August 2024 Patch Tuesday' },
+                { cve: 'CVE-2024-38112', title: 'MSHTML Spoofing', severity: 'medium', cvss: 6.5, component: 'MSHTML Platform', exploitAvailable: true, remediation: 'Update Windows/IE mode' },
+                { cve: 'CVE-2023-42793', title: 'JetBrains TeamCity Auth Bypass', severity: 'critical', cvss: 9.8, component: 'TeamCity < 2023.05.4', exploitAvailable: true, remediation: 'Update TeamCity' },
+                { cve: 'CVE-2024-27198', title: 'JetBrains TeamCity RCE', severity: 'critical', cvss: 9.9, component: 'TeamCity < 2023.11.4', exploitAvailable: true, remediation: 'Update TeamCity' },
+                { cve: 'CVE-2023-50164', title: 'Apache Struts RCE', severity: 'critical', cvss: 10.0, component: 'Struts 2.5.30-2.5.33', exploitAvailable: true, remediation: 'Update to 2.5.34+' },
+                { cve: 'CVE-2023-22515', title: 'Confluence Broken Access Control', severity: 'critical', cvss: 10.0, component: 'Confluence 8.0-8.5', exploitAvailable: true, remediation: 'Update Confluence' },
+                { cve: 'CVE-2023-22518', title: 'Confluence RCE', severity: 'critical', cvss: 9.8, component: 'Confluence 8.0-8.5', exploitAvailable: true, remediation: 'Update Confluence' },
+                { cve: 'CVE-2023-46604', title: 'Apache ActiveMQ RCE', severity: 'critical', cvss: 10.0, component: 'ActiveMQ 5.18.0-5.18.3', exploitAvailable: true, remediation: 'Update to 5.18.4+' },
+                { cve: 'CVE-2024-23897', title: 'Jenkins Path Traversal', severity: 'high', cvss: 8.4, component: 'Jenkins < 2.442', exploitAvailable: true, remediation: 'Update Jenkins' },
+                { cve: 'CVE-2023-43770', title: 'Roundcube Webmail XSS', severity: 'medium', cvss: 6.1, component: 'Roundcube < 1.5.4', exploitAvailable: true, remediation: 'Update Roundcube' },
+                { cve: 'CVE-2023-4220', title: 'nginx HTTP/2 Memory Leak', severity: 'medium', cvss: 5.3, component: 'nginx < 1.25.2', exploitAvailable: false, remediation: 'Update nginx' },
+                { cve: 'CVE-2024-24990', title: 'nginx HTTP/3 QUIC Issues', severity: 'medium', cvss: 5.3, component: 'nginx < 1.25.4', exploitAvailable: false, remediation: 'Update nginx' },
+                { cve: 'CVE-2023-38545', title: 'curl SOCKS5 Heap Overflow', severity: 'high', cvss: 7.5, component: 'curl < 8.4.0', exploitAvailable: true, remediation: 'Update curl to 8.4.0+' },
+                { cve: 'CVE-2024-2201', title: 'OpenVPN Auth Bypass', severity: 'high', cvss: 8.2, component: 'OpenVPN < 2.6.9', exploitAvailable: true, remediation: 'Update OpenVPN' },
+            ];
+
+            const count = 15 + (hash % 15);
+            return Array.from({ length: count }, (_, i) => {
+                const template = cveTemplates[(hash + i) % cveTemplates.length];
+                const severities = ['critical', 'high', 'medium', 'low', 'info'];
+                const severity = severities[(hash + i) % severities.length];
+                const cvssBase = { critical: 9.0, high: 7.0, medium: 5.0, low: 2.0, info: 0.0 }[severity];
+                return {
+                    ...template,
+                    cve: `CVE-202${3 + ((hash + i) % 2)}-${String(1000 + ((hash + i) % 9000)).padStart(4, '0')}`,
+                    severity,
+                    cvss: Math.round((cvssBase + ((hash + i) % 30) / 10) * 10) / 10,
+                    exploitAvailable: severity === 'critical' || severity === 'high' ? (hash + i) % 3 !== 0 : false,
+                    component: template.component + ` (${['linux', 'windows', 'macos', 'network', 'web', 'database'][(hash + i) % 6]})`,
+                };
+            });
+        }
+
+        // ==================== EVENT HANDLERS ====================
+        const targetInput = document.getElementById('targetInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const copyRawBtn = document.getElementById('copyRawBtn');
+        const inputTypeBadge = document.getElementById('inputTypeBadge');
+
+        // Input type detection
+        targetInput.addEventListener('input', (e) => {
+            const type = detectInputType(e.target.value);
+            currentType = type;
+            const labels = { ip: 'IP Address', domain: 'Domain', url: 'URL', hash: 'File Hash (SHA256/MD5)', unknown: 'Auto-detect' };
+            inputTypeBadge.textContent = labels[type] || 'Auto-detect';
+            inputTypeBadge.className = 'text-xs px-2 py-1 rounded-full ' + (type !== 'unknown' ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-400');
+        });
+
+        // Clear button
+        clearBtn.addEventListener('click', () => {
+            targetInput.value = '';
+            inputTypeBadge.textContent = 'Auto-detect';
+            inputTypeBadge.className = 'text-xs px-2 py-1 bg-gray-800 text-gray-400 rounded-full';
+            targetInput.focus();
+        });
+
+        // Analyze button
+        analyzeBtn.addEventListener('click', () => {
+            const target = targetInput.value.trim();
+            if (!target) return;
+
+            const type = detectInputType(target);
+            currentType = type;
+
+            // Normalize target
+            let normalizedTarget = target;
+            if (type === 'url') {
+                normalizedTarget = extractDomainFromUrl(target);
+            }
+
+            startScan(normalizedTarget, type);
+        });
+
+        // Enter key
+        targetInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                analyzeBtn.click();
+            }
+        });
+
+        // Quick test buttons
+        document.querySelectorAll('.quick-test').forEach(btn => {
+            btn.addEventListener('click', () => {
+                targetInput.value = btn.dataset.value;
+                targetInput.dispatchEvent(new Event('input'));
+                analyzeBtn.click();
+            });
+        });
+
+        // Paste button - handles clipboard paste with smart URL extraction
+        pasteBtn.addEventListener('click', async () => {
+            try {
+                if (!navigator.clipboard) {
+                    alert('Clipboard API not available. Please paste manually (Ctrl+V).');
+                    return;
+                }
+
+                const text = await navigator.clipboard.readText();
+                if (!text) return;
+
+                // Smart URL extraction from clipboard content
+                let extracted = extractUrlFromText(text);
+                if (extracted) {
+                    targetInput.value = extracted;
+                    targetInput.dispatchEvent(new Event('input'));
+                    // Show feedback
+                    const originalText = pasteBtn.innerHTML;
+                    pasteBtn.innerHTML = '<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span class="hidden sm:inline">Pasted!</span>';
+                    pasteBtn.classList.add('bg-green-500/30');
+                    setTimeout(() => {
+                        pasteBtn.innerHTML = originalText;
+                        pasteBtn.classList.remove('bg-green-500/30');
+                    }, 1500);
+                } else {
+                    // Just paste the text as-is
+                    targetInput.value = text.trim();
+                    targetInput.dispatchEvent(new Event('input'));
+                }
+            } catch (err) {
+                console.warn('Clipboard read failed:', err);
+                alert('Unable to read clipboard. Please paste manually (Ctrl+V).');
+            }
+        });
+
+        // Also handle Ctrl+V / Cmd+V directly on input for better UX
+        targetInput.addEventListener('paste', (e) => {
+            // Let the browser handle the paste, then process
+            setTimeout(() => {
+                const pastedText = e.clipboardData?.getData('text') || targetInput.value;
+                const extracted = extractUrlFromText(pastedText);
+                if (extracted && extracted !== pastedText.trim()) {
+                    targetInput.value = extracted;
+                    targetInput.dispatchEvent(new Event('input'));
+                } else {
+                    targetInput.dispatchEvent(new Event('input'));
+                }
+            }, 0);
+        });
+
+        // Copy raw JSON
+        copyRawBtn.addEventListener('click', () => copyToClipboard(JSON.stringify(rawResponse, null, 2)));
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                document.querySelectorAll('.tab').forEach(t => {
+                    t.classList.toggle('tab-active', t.dataset.tab === tabName);
+                    t.classList.toggle('tab-inactive', t.dataset.tab !== tabName);
+                });
+                document.querySelectorAll('.tab-content').forEach(c => {
+                    c.classList.toggle('hidden', c.id !== `tab-${tabName}`);
+                });
+            });
+        });
+
+        // Initialize with demo
+        targetInput.value = '185.220.101.42';
+        targetInput.dispatchEvent(new Event('input'));
+        // Auto-analyze on load
+        setTimeout(() => analyzeBtn.click(), 500);
+    </script>
+</body>
+</html>
